@@ -44,7 +44,8 @@ services:
       - "traefik.http.routers.sysmap_backend.entrypoints=websecure"
       - "traefik.http.routers.sysmap_backend.tls=true"
       - "traefik.http.routers.sysmap_backend.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.sysmap_backend.middlewares=secHeaders@file"
+      - "traefik.http.middlewares.sysmap_strip.stripprefix.prefixes=/api"
+      - "traefik.http.routers.sysmap_backend.middlewares=sysmap_strip,secHeaders@file"
       - "traefik.http.services.sysmap_backend.loadbalancer.server.port=8000"
 
   sysmap_frontend:
