@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: sysmap_db
+    restart: always
+    environment:
+      POSTGRES_DB: sysmap
+      POSTGRES_USER: sysmap_user
+      POSTGRES_PASSWORD: sysmap_password_local_2026
+    ports:
+      - "5432:5432"
+    volumes:
+      - sysmap_db_data:/var/lib/postgresql/data
+      - ./backend/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    networks:
+      - sysmap_net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sysmap_backend
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://sysmap_user:sysmap_password_local_2026@db:5432/sysmap
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - PORT=8000
+    depends_on:
+      - db
+    volumes:
+      - ./backend:/app
+    networks:
+      - sysmap_net
+
+volumes:
+  sysmap_db_data:
+
+networks:
+  sysmap_net:
+    name: sysmap_net

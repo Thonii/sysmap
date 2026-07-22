@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  sysmap_db:
+    image: postgres:16-alpine
+    container_name: sysmap_db
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sysmap}
+      POSTGRES_USER: ${POSTGRES_USER:-sysmap_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - sysmap_db_data:/var/lib/postgresql/data
+      - ./backend/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    networks:
+      - sysmap_app_private
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  sysmap_backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sysmap_backend
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-sysmap_user}:${POSTGRES_PASSWORD}@sysmap_db:5432/${POSTGRES_DB:-sysmap}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - PORT=8000
+    networks:
+      - sysmap_app_private
+      - tecnoancon_gateway
+    depends_on:
+      sysmap_db:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      # Enrutar peticiones bajo /api al backend FastAPI
+      - "traefik.http.routers.sysmap_backend.rule=Host(`${SYSMAP_HOST}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.sysmap_backend.entrypoints=websecure"
+      - "traefik.http.routers.sysmap_backend.tls=true"
+      - "traefik.http.routers.sysmap_backend.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.sysmap_backend.middlewares=secHeaders@file"
+      - "traefik.http.services.sysmap_backend.loadbalancer.server.port=8000"
+
+  sysmap_frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sysmap_frontend
+    restart: always
+    environment:
+      - VITE_API_BASE_URL=https://${SYSMAP_HOST}/api
+    networks:
+      - sysmap_app_private
+      - tecnoancon_gateway
+    labels:
+      - "traefik.enable=true"
+      # Enrutar el dominio base al contenedor standalone de Node (serve)
+      - "traefik.http.routers.sysmap_frontend.rule=Host(`${SYSMAP_HOST}`)"
+      - "traefik.http.routers.sysmap_frontend.entrypoints=websecure"
+      - "traefik.http.routers.sysmap_frontend.tls=true"
+      - "traefik.http.routers.sysmap_frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.sysmap_frontend.middlewares=secHeaders@file"
+      - "traefik.http.services.sysmap_frontend.loadbalancer.server.port=3000"
+
+volumes:
+  sysmap_db_data:
+
+networks:
+  sysmap_app_private:
+    driver: bridge
+  tecnoancon_gateway:
+    external: true
