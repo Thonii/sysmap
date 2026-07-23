@@ -94,7 +94,8 @@ function App() {
       });
       
       if (!response.ok) {
-        throw new Error('Error al iniciar la sincronización de eventos en el servidor.');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Error al iniciar la sincronización de eventos en el servidor.');
       }
       
       // Damos una espera de 11 segundos mientras los scrapers ejecutan secuencialmente en background.
@@ -104,7 +105,7 @@ function App() {
       await fetchEvents();
     } catch (err: any) {
       console.error(err);
-      setError('No se pudo completar la sincronización automática de eventos.');
+      setError(err.message || 'No se pudo completar la sincronización automática de eventos.');
     } finally {
       setIsIngesting(false);
     }

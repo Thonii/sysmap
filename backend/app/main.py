@@ -187,20 +187,41 @@ def get_events(
             
     return events
 
+# Control de cooldown para evitar abuso del disparador de ingesta (Rate-Limiting)
+LAST_INGEST_TIME = None
+INGEST_COOLDOWN_MINUTES = 10
+
 @app.post("/ingest")
 def trigger_ingest(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """
-    Ejecuta el pipeline de ingesta de eventos en segundo plano.
+    Ejecuta el pipeline de ingesta de eventos en segundo plano con control de cooldown.
     """
+    global LAST_INGEST_TIME
+    ahora = datetime.now(timezone.utc)
+    
+    if LAST_INGEST_TIME:
+        diferencia = ahora - LAST_INGEST_TIME
+        if diferencia < timedelta(minutes=INGEST_COOLDOWN_MINUTES):
+            minutos_restantes = INGEST_COOLDOWN_MINUTES - (diferencia.total_seconds() / 60)
+            raise HTTPException(
+                status_code=429,
+                detail=f"Sincronización en cooldown. Por favor, intenta de nuevo en {int(minutos_restantes) + 1} minutos."
+            )
+            
+    # Registrar el inicio del proceso de ingesta
+    LAST_INGEST_TIME = ahora
+
     def run_ingest():
         db_session = next(get_db())
         try:
             ingest_events_pipeline(db_session)
+        except Exception as e:
+            logger.error(f"Error en la ingesta disparada por API: {e}")
         finally:
             db_session.close()
 
     background_tasks.add_task(run_ingest)
-    return {"message": "Pipeline de ingesta disparado con éxito en segundo plano."}
+    return {"message": "Sincronización de eventos iniciada en segundo plano con éxito."}
 
 @app.post("/subscriptions")
 def create_subscription(

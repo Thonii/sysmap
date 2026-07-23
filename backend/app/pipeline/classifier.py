@@ -93,8 +93,8 @@ def classify_event_with_ia(title: str, description: str) -> dict:
     Llama a Gemini 1.5 Flash para clasificar el evento y extraer tags.
     """
     if not GEMINI_API_KEY:
-        logger.warning("GEMINI_API_KEY no configurada. Clasificando como dudoso pero verdadero.")
-        return {"is_tech": True, "tags": ["tecnologia"], "reason": "No API Key configured"}
+        logger.warning("GEMINI_API_KEY no configurada. Clasificando como NO-TECNOLÓGICO por seguridad.")
+        return {"is_tech": False, "tags": [], "reason": "No API Key configured"}
 
     prompt = f"""
     Evalúa si el siguiente evento pertenece al nicho de tecnología, programación, desarrollo de software, startups de base tecnológica, diseño UX/UI o gestión de productos digitales.
